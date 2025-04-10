@@ -3,8 +3,9 @@
 set -e  # Exit if any command fails
 
 echo "Starting CARE installation..."
-# Get public IP address
+
 PUBLIC_IP=$(curl -s http://checkip.amazonaws.com)
+echo "Public IP: $PUBLIC_IP"
 
 ### --- System Update & Essentials --- ###
 
@@ -94,12 +95,12 @@ fi
 cd care
 echo "Starting backend services with Docker..."
 make up
-cd ..
 
 
 ### --- CARE Frontend Setup --- ###
 
 echo "Setting up CARE Frontend..."
+cd ..
 
 if [ -d "care_fe" ]; then
   echo "Frontend repository exists. Pulling latest changes..."
@@ -123,11 +124,13 @@ npm run setup --yes
 echo "Installing Nginx..."
 apt-get install -y nginx
 
+API_BASE_PATH="/api/v1"
+
 echo "Setting up Nginx reverse proxy..."
 cat > /etc/nginx/sites-available/care << EOF
 server {
     listen 80;
-    server_name _;
+    server_name $PUBLIC_IP;
 
     location / {
         proxy_pass http://localhost:4000;
@@ -138,8 +141,8 @@ server {
         proxy_cache_bypass \$http_upgrade;
     }
 
-    location /api/ {
-        proxy_pass http://localhost:9000;
+    location ${API_BASE_PATH}/ {
+        proxy_pass http://localhost:9000${API_BASE_PATH}/;
         proxy_http_version 1.1;
         proxy_set_header Upgrade \$http_upgrade;
         proxy_set_header Connection 'upgrade';
@@ -159,9 +162,9 @@ systemctl restart nginx
 
 echo "Updating API URL configuration to use the Nginx proxy path..."
 if [ -f ".env" ]; then
-  sed -i "s|REACT_CARE_API_URL=.*|REACT_CARE_API_URL=http://$PUBLIC_IP/api|g" .env
+  sed -i "s|REACT_CARE_API_URL=.*|REACT_CARE_API_URL=http://$PUBLIC_IP|g" .env
 else
-  echo "REACT_CARE_API_URL=http://$PUBLIC_IP/api" > .env
+  echo "REACT_CARE_API_URL=http://$PUBLIC_IP" > .env
 fi
 
 echo "Starting frontend development server..."
@@ -176,4 +179,4 @@ netfilter-persistent save
 
 echo "Installation complete!"
 echo "CARE Frontend is running at: http://$PUBLIC_IP"
-echo "CARE Backend is running at: http://$PUBLIC_IP/api"
+echo "CARE Backend is running at: http://$PUBLIC_IP${API_BASE_PATH}"
