@@ -2,6 +2,16 @@
 
 set -e  # Exit if any command fails
 
+# Check available disk space
+REQUIRED_SPACE=36  # GB
+AVAILABLE_SPACE=$(df / --output=avail | tail -n 1)
+AVAILABLE_SPACE_GB=$((AVAILABLE_SPACE / 1024 / 1024))  # Convert to GB
+
+if [ "$AVAILABLE_SPACE_GB" -lt "$REQUIRED_SPACE" ]; then
+  echo "Error: At least ${REQUIRED_SPACE}GB required. Only ${AVAILABLE_SPACE_GB}GB available."
+  exit 1
+fi
+
 echo "Starting CARE installation..."
 
 PUBLIC_IP=$(curl -s http://checkip.amazonaws.com)
