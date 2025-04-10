@@ -25,11 +25,11 @@ echo "Setting up Docker repository..."
 apt-get install -y ca-certificates curl gnupg
 install -m 0755 -d /etc/apt/keyrings
 
-# Add Docker GPG key
+echo "Adding Docker GPG key..."
 curl -fsSL https://download.docker.com/linux/ubuntu/gpg -o /etc/apt/keyrings/docker.asc
 chmod a+r /etc/apt/keyrings/docker.asc
 
-# Add Docker repository
+echo "Adding Docker repository to APT sources..."
 echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.asc] https://download.docker.com/linux/ubuntu \
 $(. /etc/os-release && echo "${UBUNTU_CODENAME:-$VERSION_CODENAME}") stable" \
 | tee /etc/apt/sources.list.d/docker.list > /dev/null
@@ -111,38 +111,69 @@ else
   cd care_fe
 fi
 
-# Install dependencies and run setup
 echo "Installing frontend dependencies..."
 npm install --yes
 
 echo "Running setup script..."
 npm run setup --yes
 
-# Update .env with backend API URL
-echo "Updating API URL configuration to use http://$PUBLIC_IP:9000..."
+
+### --- Nginx Reverse Proxy Setup --- ###
+
+echo "Installing Nginx..."
+apt-get install -y nginx
+
+echo "Setting up Nginx reverse proxy..."
+cat > /etc/nginx/sites-available/care << EOF
+server {
+    listen 80;
+    server_name _;
+
+    location / {
+        proxy_pass http://localhost:4000;
+        proxy_http_version 1.1;
+        proxy_set_header Upgrade \$http_upgrade;
+        proxy_set_header Connection 'upgrade';
+        proxy_set_header Host \$host;
+        proxy_cache_bypass \$http_upgrade;
+    }
+
+    location /api/ {
+        proxy_pass http://localhost:9000;
+        proxy_http_version 1.1;
+        proxy_set_header Upgrade \$http_upgrade;
+        proxy_set_header Connection 'upgrade';
+        proxy_set_header Host \$host;
+        proxy_cache_bypass \$http_upgrade;
+    }
+}
+EOF
+
+echo "Activating Nginx configuration..."
+ln -sf /etc/nginx/sites-available/care /etc/nginx/sites-enabled/
+rm -f /etc/nginx/sites-enabled/default
+systemctl restart nginx
+
+
+### --- Frontend Environment Configuration --- ###
+
+echo "Updating API URL configuration to use the Nginx proxy path..."
 if [ -f ".env" ]; then
-  sed -i "s|REACT_CARE_API_URL=.*|REACT_CARE_API_URL=http://$PUBLIC_IP:9000|g" .env
+  sed -i "s|REACT_CARE_API_URL=.*|REACT_CARE_API_URL=http://$PUBLIC_IP/api|g" .env
 else
-  echo "REACT_CARE_API_URL=http://$PUBLIC_IP:9000" > .env
+  echo "REACT_CARE_API_URL=http://$PUBLIC_IP/api" > .env
 fi
 
-# Start dev server in background
 echo "Starting frontend development server..."
 nohup npm run dev > /dev/null 2>&1 &
 
 
-### --- Port Forwarding --- ###
+### --- Cleanup --- ###
 
-echo "Forwarding port 80 to frontend on port 4000..."
-iptables -t nat -A PREROUTING -p tcp --dport 80 -j REDIRECT --to-port 4000
-
-echo "Installing iptables-persistent to save port forwarding rule..."
-DEBIAN_FRONTEND=noninteractive apt-get install -y iptables-persistent
+echo "Clearing any existing port forwarding rules..."
+iptables -t nat -D PREROUTING -p tcp --dport 80 -j REDIRECT --to-port 4000 2>/dev/null || true
 netfilter-persistent save
 
-
-### --- Completion --- ###
-
 echo "Installation complete!"
-echo "CARE Frontend is available at: http://$PUBLIC_IP"
-echo "CARE Backend is available at: http://$PUBLIC_IP:9000"
+echo "CARE Frontend is running at: http://$PUBLIC_IP"
+echo "CARE Backend is running at: http://$PUBLIC_IP/api"
