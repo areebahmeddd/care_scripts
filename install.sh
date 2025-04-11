@@ -48,6 +48,11 @@ install_dependencies() {
 install_caddy() {
   echo "Installing Caddy..."
 
+  if command_exists "caddy"; then
+    echo "Caddy is already installed."
+    return
+  fi
+
   # Add Caddy repository
   curl -1sLf 'https://dl.cloudsmith.io/public/caddy/stable/gpg.key' | sudo gpg --dearmor -o /usr/share/keyrings/caddy-stable-archive-keyring.gpg
   curl -1sLf 'https://dl.cloudsmith.io/public/caddy/stable/debian.deb.txt' | sudo tee /etc/apt/sources.list.d/caddy-stable.list
@@ -160,7 +165,7 @@ configure_caddy() {
   auto_https off
 }
 
-$PUBLIC_IP {
+$PUBLIC_IP:80 {
     # Frontend
     handle / {
         reverse_proxy localhost:4000
