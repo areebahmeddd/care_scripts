@@ -186,11 +186,11 @@ update_frontend_config() {
   nohup npm run dev > /dev/null 2>&1 &
 }
 
-cleanup() {
-  echo "Clearing any existing port forwarding rules..."
-  iptables -t nat -D PREROUTING -p tcp --dport 80 -j REDIRECT --to-port 4000 2>/dev/null || true
-  netfilter-persistent save
-}
+# cleanup() {
+#   echo "Clearing any existing port forwarding rules..."
+#   iptables -t nat -D PREROUTING -p tcp --dport 80 -j REDIRECT --to-port 4000 2>/dev/null || true
+#   netfilter-persistent save
+# }
 
 ### --- Main Script Execution --- ###
 
@@ -211,7 +211,7 @@ setup_backend
 setup_frontend
 configure_nginx
 update_frontend_config
-cleanup
+# cleanup
 
 echo "Installation complete!"
 echo "CARE Frontend is running at: http://$PUBLIC_IP"
