@@ -10,7 +10,7 @@ check_ubuntu() {
 }
 
 check_disk_space() {
-  REQUIRED_SPACE=36  # GB
+  REQUIRED_SPACE=1  # GB
   AVAILABLE_SPACE=$(df / --output=avail | tail -n 1)
   AVAILABLE_SPACE_GB=$((AVAILABLE_SPACE / 1024 / 1024))  # Convert to GB
 
@@ -23,6 +23,7 @@ check_disk_space() {
 update_system() {
   echo "Updating system packages..."
   apt-get update && apt-get upgrade -y
+  sudo apt autoremove -y
   echo "System update complete."
 }
 
