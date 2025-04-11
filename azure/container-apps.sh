@@ -70,6 +70,21 @@ az redis create \
   --vm-size C1 \
   --redis-version 6
 
+# Create WAF-enabled Application Gateway
+echo "Creating Application Gateway with WAF..."
+az network application-gateway create \
+  --name ohc-app-gateway \
+  --resource-group $RESOURCE_GROUP \
+  --location $LOCATION \
+  --sku WAF_v2 \
+  --capacity 2 \
+  --gateway-ip-configurations "name=appGatewayIpConfig subnet=/subscriptions/{subscription-id}/resourceGroups/{resource-group}/providers/Microsoft.Network/virtualNetworks/{vnet-name}/subnets/{subnet-name}" \
+  --frontend-ports "name=appGatewayFrontendPort port=80" \
+  --http-settings "name=appGatewayHttpSettings port=80 cookie-based-affinity Disabled" \
+  --backend-pool "name=appGatewayBackendPool backend-addresses=[\"${APP_NAME}.${LOCATION}.azurecontainerapps.io\"]" \
+  --waf-configuration "enabled=true firewall-mode=Prevention"
+
+# Get connection details for PostgreSQL & Redis
 echo "Getting connection details..."
 # PostgreSQL configuration
 POSTGRES_HOST="${POSTGRES_SERVER_NAME}.postgres.database.azure.com"
