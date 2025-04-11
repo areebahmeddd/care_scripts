@@ -45,7 +45,7 @@ install_caddy() {
   # Add Caddy repository
   curl -1sLf 'https://dl.cloudsmith.io/public/caddy/stable/gpg.key' | sudo gpg --dearmor -o /usr/share/keyrings/caddy-stable-archive-keyring.gpg
   curl -1sLf 'https://dl.cloudsmith.io/public/caddy/stable/debian.deb.txt' | sudo tee /etc/apt/sources.list.d/caddy-stable.list
-  sudo apt install caddy
+  apt-get install -y caddy
 
   # Start Caddy service
   systemctl enable caddy
@@ -66,8 +66,6 @@ install_docker() {
   echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.asc] https://download.docker.com/linux/ubuntu \
   $(. /etc/os-release && echo "${UBUNTU_CODENAME:-$VERSION_CODENAME}") stable" \
   | tee /etc/apt/sources.list.d/docker.list > /dev/null
-
-  apt-get update -y
 
   echo "Installing Docker..."
   apt-get install -y docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin
