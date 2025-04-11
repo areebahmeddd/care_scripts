@@ -2,8 +2,6 @@
 
 set -e  # Exit if any command fails
 
-### --- Utility Functions --- ###
-
 check_ubuntu() {
   if ! grep -q "Ubuntu" /etc/os-release; then
     echo "Error: This script is intended for Ubuntu systems only."
@@ -29,7 +27,7 @@ command_exists() {
 install_dependencies() {
   echo "Installing required dependencies..."
 
-  required_packages=("curl" "git" "apt-transport-https" "ca-certificates" "build-essential" "unzip" "nginx" "gnupg")
+  required_packages=("curl" "git" "apt-transport-https" "ca-certificates" "build-essential" "unzip" "gnupg")
 
   for pkg in "${required_packages[@]}"; do
     if ! command_exists "$pkg"; then
@@ -39,6 +37,21 @@ install_dependencies() {
       echo "$pkg is already installed."
     fi
   done
+}
+
+install_caddy() {
+  echo "Installing Caddy..."
+
+  # Add Caddy repository
+  curl -1sLf 'https://dl.cloudsmith.io/public/caddy/stable/gpg.key' | sudo gpg --dearmor -o /usr/share/keyrings/caddy-stable-archive-keyring.gpg
+  curl -1sLf 'https://dl.cloudsmith.io/public/caddy/stable/debian.deb.txt' | sudo tee /etc/apt/sources.list.d/caddy-stable.list
+  sudo apt install caddy
+
+  # Start Caddy service
+  systemctl enable caddy
+  systemctl start caddy
+
+  echo "Caddy installed successfully"
 }
 
 install_docker() {
@@ -131,43 +144,44 @@ setup_frontend() {
   npm run setup --yes
 }
 
-configure_nginx() {
-  echo "Configuring Nginx..."
+configure_caddy() {
+  echo "Configuring Caddy..."
   API_BASE_PATH="/api/v1"
 
-  cat > /etc/nginx/sites-available/care << EOF
-server {
-    listen 80;
-    server_name $PUBLIC_IP;
+  # Create Caddy configuration file
+  cat > /etc/caddy/Caddyfile << EOF
+$PUBLIC_IP {
+    # tls internal
 
-    location / {
-        proxy_pass http://localhost:4000;
-        proxy_http_version 1.1;
-        proxy_set_header Upgrade \$http_upgrade;
-        proxy_set_header Connection 'upgrade';
-        proxy_set_header Host \$host;
-        proxy_cache_bypass \$http_upgrade;
+    # Frontend
+    handle / {
+        reverse_proxy localhost:4000
     }
 
-    location ${API_BASE_PATH}/ {
-        proxy_pass http://localhost:9000${API_BASE_PATH}/;
-        proxy_http_version 1.1;
-        proxy_set_header Upgrade \$http_upgrade;
-        proxy_set_header Connection 'upgrade';
-        proxy_set_header Host \$host;
-        proxy_cache_bypass \$http_upgrade;
+    # Backend
+    handle $API_BASE_PATH/* {
+        reverse_proxy localhost:9000
+    }
+
+    # Log requests
+    log {
+        output file /var/log/caddy/access.log
     }
 }
 EOF
 
-  echo "Activating Nginx configuration..."
-  ln -sf /etc/nginx/sites-available/care /etc/nginx/sites-enabled/
-  rm -f /etc/nginx/sites-enabled/default
-  systemctl restart nginx
+  # Create log directory
+  mkdir -p /var/log/caddy
+  chown -R caddy:caddy /var/log/caddy
+
+  # Reload Caddy to apply new configuration
+  systemctl reload caddy
+
+  echo "Caddy configuration updated."
 }
 
 update_frontend_config() {
-  echo "Updating API URL to use Nginx proxy path..."
+  echo "Updating API URL to use Caddy proxy path..."
   if [ -f ".env" ]; then
     sed -i "s|REACT_CARE_API_URL=.*|REACT_CARE_API_URL=http://$PUBLIC_IP|g" .env
   else
@@ -186,6 +200,8 @@ cleanup() {
 
 ### --- Main Script Execution --- ###
 
+echo "Starting CARE installation..."
+
 check_ubuntu
 check_disk_space
 
@@ -193,12 +209,13 @@ PUBLIC_IP=$(curl -s http://checkip.amazonaws.com)
 echo "Public IP: $PUBLIC_IP"
 
 install_dependencies
+install_caddy
 install_docker
 install_node
 
 setup_backend
 setup_frontend
-configure_nginx
+configure_caddy
 update_frontend_config
 
 cleanup
