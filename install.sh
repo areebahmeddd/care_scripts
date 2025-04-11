@@ -20,6 +20,12 @@ check_disk_space() {
   fi
 }
 
+update_system() {
+  echo "Updating system packages..."
+  apt-get update && apt-get upgrade -y
+  echo "System update complete."
+}
+
 command_exists() {
   command -v "$1" >/dev/null 2>&1
 }
@@ -150,9 +156,11 @@ configure_caddy() {
 
   # Create Caddy configuration file
   cat > /etc/caddy/Caddyfile << EOF
-$PUBLIC_IP {
-    # tls internal
+{
+  auto_https off
+}
 
+$PUBLIC_IP {
     # Frontend
     handle / {
         reverse_proxy localhost:4000
@@ -192,18 +200,13 @@ update_frontend_config() {
   nohup npm run dev > /dev/null 2>&1 &
 }
 
-cleanup() {
-  echo "Clearing any existing port forwarding rules..."
-  iptables -t nat -D PREROUTING -p tcp --dport 80 -j REDIRECT --to-port 4000 2>/dev/null || true
-  netfilter-persistent save
-}
-
 ### --- Main Script Execution --- ###
 
 echo "Starting CARE installation..."
 
 check_ubuntu
 check_disk_space
+update_system
 
 PUBLIC_IP=$(curl -s http://checkip.amazonaws.com)
 echo "Public IP: $PUBLIC_IP"
@@ -217,8 +220,6 @@ setup_backend
 setup_frontend
 configure_caddy
 update_frontend_config
-
-cleanup
 
 echo "Installation complete!"
 echo "CARE Frontend is running at: http://$PUBLIC_IP"
