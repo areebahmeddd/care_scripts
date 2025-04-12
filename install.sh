@@ -10,7 +10,7 @@ check_ubuntu() {
 }
 
 check_disk_space() {
-  REQUIRED_SPACE=1  # GB
+  REQUIRED_SPACE=30  # GB
   AVAILABLE_SPACE=$(df / --output=avail | tail -n 1)
   AVAILABLE_SPACE_GB=$((AVAILABLE_SPACE / 1024 / 1024))  # Convert to GB
 
