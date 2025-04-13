@@ -104,15 +104,19 @@ setup_backend() {
     echo "Backend repository exists. Pulling latest changes..."
     cd care
     git pull
-    cd ..
   else
     echo "Cloning backend repository..."
     git clone https://github.com/ohcnetwork/care.git
+    cd care
   fi
 
-  cd care
-  echo "Starting backend services with Docker..."
-  make up
+  # Check if Docker services are already up
+  if docker compose ps | grep -q "Up"; then
+    echo "Backend services already running. Skipping 'make up'."
+  else
+    echo "Starting backend services with Docker..."
+    make up
+  fi
 }
 
 setup_frontend() {
@@ -146,21 +150,21 @@ server {
     server_name $PUBLIC_IP;
 
     location / {
-        proxy_pass http://localhost:4000;
-        proxy_http_version 1.1;
-        proxy_set_header Upgrade \$http_upgrade;
-        proxy_set_header Connection 'upgrade';
-        proxy_set_header Host \$host;
-        proxy_cache_bypass \$http_upgrade;
+      proxy_pass http://localhost:4000;
+      proxy_http_version 1.1;
+      proxy_set_header Upgrade \$http_upgrade;
+      proxy_set_header Connection 'upgrade';
+      proxy_set_header Host \$host;
+      proxy_cache_bypass \$http_upgrade;
     }
 
     location ${API_BASE_PATH}/ {
-        proxy_pass http://localhost:9000${API_BASE_PATH}/;
-        proxy_http_version 1.1;
-        proxy_set_header Upgrade \$http_upgrade;
-        proxy_set_header Connection 'upgrade';
-        proxy_set_header Host \$host;
-        proxy_cache_bypass \$http_upgrade;
+      proxy_pass http://localhost:9000${API_BASE_PATH}/;
+      proxy_http_version 1.1;
+      proxy_set_header Upgrade \$http_upgrade;
+      proxy_set_header Connection 'upgrade';
+      proxy_set_header Host \$host;
+      proxy_cache_bypass \$http_upgrade;
     }
 
     access_log /var/log/nginx/care-access.log;
@@ -182,8 +186,13 @@ update_frontend_config() {
     echo "REACT_CARE_API_URL=http://$PUBLIC_IP" > .env
   fi
 
-  echo "Starting frontend development server..."
-  nohup npm run dev > /dev/null 2>&1 &
+  # Check if npm dev server is already running
+  if pgrep -f "npm run dev" > /dev/null; then
+    echo "Frontend development server already running. Skipping 'npm run dev'."
+  else
+    echo "Starting frontend development server..."
+    nohup npm run dev > /dev/null 2>&1 &
+  fi
 }
 
 # cleanup() {
