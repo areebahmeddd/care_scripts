@@ -147,7 +147,7 @@ configure_nginx() {
   cat > /etc/nginx/sites-available/care << EOF
 server {
     listen 80;
-    server_name $PUBLIC_IP;
+    server_name _;
 
     location / {
       proxy_pass http://localhost:4000;
