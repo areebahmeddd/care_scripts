@@ -177,19 +177,26 @@ EOF
 }
 
 update_frontend_config() {
-  echo "Updating API URL..."
-
   if [ -f ".env" ]; then
     sed -i "s|REACT_CARE_API_URL=.*|REACT_CARE_API_URL=http://localhost:9000|g" .env
   else
     echo "REACT_CARE_API_URL=http://localhost:9000" > .env
   fi
 
+  # Check if we're not in 'care_fe' and navigate to it
+  if [ "$(basename "$PWD")" != "care_fe" ]; then
+    if [ -d "care_fe" ]; then
+      cd care_fe
+    else
+      echo "'care_fe' directory not found!"
+      exit 1
+    fi
+  fi
+
   # Check if npm dev server is already running
   if pgrep -f "npm run dev" > /dev/null; then
-    echo "Frontend development server already running. Skipping 'npm run dev'."
+    echo "Frontend development server already running."
   else
-    echo "Starting frontend development server..."
     nohup sudo npm run dev > /dev/null 2>&1 &
   fi
 }
