@@ -34,7 +34,7 @@ command_exists() {
 install_dependencies() {
   echo "Installing required dependencies..."
 
-  required_packages=("curl" "git" "apt-transport-https" "ca-certificates" "build-essential" "unzip" "nginx" "gnupg")
+  required_packages=("curl" "git" "apt-transport-https" "ca-certificates" "build-essential" "unzip" "gnupg")
 
   for pkg in "${required_packages[@]}"; do
     if ! command_exists "$pkg"; then
@@ -140,50 +140,13 @@ setup_frontend() {
   npm run setup --yes
 }
 
-configure_nginx() {
-  echo "Configuring Nginx..."
-  API_BASE_PATH="/api/v1"
-
-  cat > /etc/nginx/sites-available/care << EOF
-server {
-    listen 80;
-    server_name _;
-
-    location / {
-      proxy_pass http://localhost:4000;
-      proxy_http_version 1.1;
-      proxy_set_header Upgrade \$http_upgrade;
-      proxy_set_header Connection 'upgrade';
-      proxy_set_header Host \$host;
-      proxy_cache_bypass \$http_upgrade;
-    }
-
-    location ${API_BASE_PATH}/ {
-      proxy_pass http://localhost:9000${API_BASE_PATH}/;
-      proxy_http_version 1.1;
-      proxy_set_header Upgrade \$http_upgrade;
-      proxy_set_header Connection 'upgrade';
-      proxy_set_header Host \$host;
-      proxy_cache_bypass \$http_upgrade;
-    }
-
-    access_log /var/log/nginx/care-access.log;
-    error_log /var/log/nginx/care-error.log;
-}
-EOF
-
-  echo "Activating Nginx configuration..."
-  ln -sf /etc/nginx/sites-available/care /etc/nginx/sites-enabled/
-  rm -f /etc/nginx/sites-enabled/default
-  systemctl restart nginx
-}
-
 update_frontend_config() {
-  echo "Updating API URL to use Nginx proxy path..."
+  echo "Updating API URL..."
+
   if [ -f ".env" ]; then
-    sed -i "s|REACT_CARE_API_URL=.*|REACT_CARE_API_URL=http://$PUBLIC_IP|g" .env
+    sed -i "s|REACT_CARE_API_URL=.*|REACT_CARE_API_URL=http://localhost:9000|g" .env
   else
-    echo "REACT_CARE_API_URL=http://$PUBLIC_IP" > .env
+    echo "REACT_CARE_API_URL=http://localhost:9000" > .env
   fi
 
   # Check if npm dev server is already running
@@ -195,12 +158,6 @@ update_frontend_config() {
   fi
 }
 
-# cleanup() {
-#   echo "Clearing any existing port forwarding rules..."
-#   iptables -t nat -D PREROUTING -p tcp --dport 80 -j REDIRECT --to-port 4000 2>/dev/null || true
-#   netfilter-persistent save
-# }
-
 ### --- Main Script Execution --- ###
 
 echo "Starting CARE installation..."
@@ -209,8 +166,7 @@ check_ubuntu
 check_disk_space
 update_system
 
-PUBLIC_IP=$(curl -s http://checkip.amazonaws.com)
-echo "Public IP: $PUBLIC_IP"
+echo "Using localhost for the setup"
 
 install_dependencies
 install_docker
@@ -218,10 +174,8 @@ install_node
 
 setup_backend
 setup_frontend
-configure_nginx
 update_frontend_config
-# cleanup
 
 echo "Installation complete!"
-echo "CARE Frontend is running at: http://$PUBLIC_IP"
-echo "CARE Backend is running at: http://$PUBLIC_IP/api/v1"
+echo "CARE Frontend is running at: http://localhost:4000"
+echo "CARE Backend is running at: http://localhost:9000"
