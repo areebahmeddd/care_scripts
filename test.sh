@@ -145,7 +145,7 @@ configure_nginx() {
   cat > /etc/nginx/sites-available/care << EOF
 server {
     listen 80;
-    server_name _;
+    server_name ${PUBLIC_IP};
 
     location / {
       proxy_pass http://localhost:4000;
@@ -190,7 +190,7 @@ update_frontend_config() {
     echo "Frontend development server already running. Skipping 'npm run dev'."
   else
     echo "Starting frontend development server..."
-    nohup npm run dev > /dev/null 2>&1 &
+    nohup sudo npm run dev > /dev/null 2>&1 &
   fi
 }
 
