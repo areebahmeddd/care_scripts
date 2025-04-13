@@ -34,7 +34,7 @@ command_exists() {
 install_dependencies() {
   echo "Installing required dependencies..."
 
-  required_packages=("curl" "git" "apt-transport-https" "ca-certificates" "build-essential" "unzip" "gnupg")
+  required_packages=("curl" "git" "apt-transport-https" "ca-certificates" "build-essential" "unzip" "nginx" "gnupg")
 
   for pkg in "${required_packages[@]}"; do
     if ! command_exists "$pkg"; then
@@ -47,53 +47,64 @@ install_dependencies() {
 }
 
 install_docker() {
-  echo "Setting up Docker repository..."
-  install -m 0755 -d /etc/apt/keyrings
+  if command_exists docker; then
+    echo "Docker is already installed."
+  else
+    echo "Setting up Docker repository..."
 
-  echo "Adding Docker GPG key..."
-  curl -fsSL https://download.docker.com/linux/ubuntu/gpg -o /etc/apt/keyrings/docker.asc
-  chmod a+r /etc/apt/keyrings/docker.asc
+    install -m 0755 -d /etc/apt/keyrings
 
-  echo "Adding Docker repository to APT sources..."
-  echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.asc] https://download.docker.com/linux/ubuntu \
-  $(. /etc/os-release && echo "${UBUNTU_CODENAME:-$VERSION_CODENAME}") stable" \
-  | tee /etc/apt/sources.list.d/docker.list > /dev/null
+    echo "Adding Docker GPG key..."
+    curl -fsSL https://download.docker.com/linux/ubuntu/gpg -o /etc/apt/keyrings/docker.asc
+    chmod a+r /etc/apt/keyrings/docker.asc
 
-  apt-get update -y
+    echo "Adding Docker repository to APT sources..."
+    echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.asc] https://download.docker.com/linux/ubuntu \
+    $(. /etc/os-release && echo "${UBUNTU_CODENAME:-$VERSION_CODENAME}") stable" \
+    | tee /etc/apt/sources.list.d/docker.list > /dev/null
 
-  echo "Installing Docker..."
-  apt-get install -y docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin
-  systemctl enable docker
-  systemctl start docker
+    apt-get update -y
+
+    echo "Installing Docker..."
+    apt-get install -y docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin
+    systemctl enable docker
+    systemctl start docker
+  fi
 }
 
 install_node() {
-  echo "Installing Node.js 22..."
+  echo "Checking for Node.js installation..."
 
-  # Set up fnm (Fast Node Manager)
-  export FNM_DIR="$HOME/.fnm"
-  export PATH="$FNM_DIR:$PATH"
+  if command_exists node; then
+    echo "Node.js is already installed. Version: $(node -v)"
+  else
+    echo "Installing Node.js 22..."
 
-  TEMP_DIR=$(mktemp -d)
-  curl -fsSL https://fnm.vercel.app/install | bash -s -- --install-dir "$TEMP_DIR" --skip-shell
+    # Set up fnm (Fast Node Manager)
+    export FNM_DIR="$HOME/.fnm"
+    export PATH="$FNM_DIR:$PATH"
 
-  # Move fnm to system path
-  mkdir -p /usr/local/lib/fnm
-  cp -r "$TEMP_DIR"/* /usr/local/lib/fnm/
-  ln -sf /usr/local/lib/fnm/fnm /usr/local/bin/fnm
+    TEMP_DIR=$(mktemp -d)
+    curl -fsSL https://fnm.vercel.app/install | bash -s -- --install-dir "$TEMP_DIR" --skip-shell
 
-  export PATH="/usr/local/bin:$PATH"
+    # Move fnm to system path
+    mkdir -p /usr/local/lib/fnm
+    cp -r "$TEMP_DIR"/* /usr/local/lib/fnm/
+    ln -sf /usr/local/lib/fnm/fnm /usr/local/bin/fnm
 
-  # Install and link Node.js 22
-  fnm install 22
-  CURRENT_NODE_PATH=$(fnm exec --using=22 which node)
-  CURRENT_NPM_PATH=$(fnm exec --using=22 which npm)
-  ln -sf "$CURRENT_NODE_PATH" /usr/local/bin/node
-  ln -sf "$CURRENT_NPM_PATH" /usr/local/bin/npm
+    export PATH="/usr/local/bin:$PATH"
 
-  rm -rf "$TEMP_DIR"
+    # Install and link Node.js 22
+    fnm install 22
+    CURRENT_NODE_PATH=$(fnm exec --using=22 which node)
+    CURRENT_NPM_PATH=$(fnm exec --using=22 which npm)
+    ln -sf "$CURRENT_NODE_PATH" /usr/local/bin/node
+    ln -sf "$CURRENT_NPM_PATH" /usr/local/bin/npm
 
-  echo "Node.js $(node -v) and npm $(npm -v) installed"
+    rm -rf "$TEMP_DIR"
+
+    echo "Node.js $(node -v) and npm $(npm -v) installed"
+  fi
 }
 
 setup_backend() {
@@ -112,7 +123,7 @@ setup_backend() {
 
   # Check if Docker services are already up
   if docker compose ps | grep -q "Up"; then
-    echo "Backend services already running. Skipping 'make up'."
+    echo "Backend services are already running. Skipping 'make up'."
   else
     echo "Starting backend services with Docker..."
     make up
@@ -140,6 +151,50 @@ setup_frontend() {
   npm run setup --yes
 }
 
+configure_nginx() {
+  # Check if nginx is installed
+  if ! command_exists nginx; then
+    echo "Error: Nginx is not installed. Please install Nginx before proceeding."
+    exit 1
+  fi
+
+  echo "Configuring Nginx..."
+  API_BASE_PATH="/api/v1"
+
+  cat > /etc/nginx/sites-available/care << EOF
+server {
+    listen 80;
+    server_name _;
+
+    location / {
+      proxy_pass http://localhost:4000;
+      proxy_http_version 1.1;
+      proxy_set_header Upgrade \$http_upgrade;
+      proxy_set_header Connection 'upgrade';
+      proxy_set_header Host \$host;
+      proxy_cache_bypass \$http_upgrade;
+    }
+
+    location ${API_BASE_PATH}/ {
+      proxy_pass http://localhost:9000${API_BASE_PATH}/;
+      proxy_http_version 1.1;
+      proxy_set_header Upgrade \$http_upgrade;
+      proxy_set_header Connection 'upgrade';
+      proxy_set_header Host \$host;
+      proxy_cache_bypass \$http_upgrade;
+    }
+
+    access_log /var/log/nginx/care-access.log;
+    error_log /var/log/nginx/care-error.log;
+}
+EOF
+
+  echo "Activating Nginx configuration..."
+  ln -sf /etc/nginx/sites-available/care /etc/nginx/sites-enabled/
+  rm -f /etc/nginx/sites-enabled/default
+  systemctl restart nginx
+}
+
 update_frontend_config() {
   echo "Updating API URL..."
 
@@ -149,14 +204,29 @@ update_frontend_config() {
     echo "REACT_CARE_API_URL=http://localhost:9000" > .env
   fi
 
+  # Check if we're not in 'care_fe' and navigate to it
+  if [ "$(basename "$PWD")" != "care_fe" ]; then
+    if [ -d "care_fe" ]; then
+      cd care_fe
+    else
+      echo "'care_fe' directory not found!"
+      exit 1
+    fi
+  fi
+
   # Check if npm dev server is already running
   if pgrep -f "npm run dev" > /dev/null; then
-    echo "Frontend development server already running. Skipping 'npm run dev'."
+    echo "Frontend development server already running."
   else
-    echo "Starting frontend development server..."
-    nohup npm run dev > /dev/null 2>&1 &
+    nohup sudo npm run dev > /dev/null 2>&1 &
   fi
 }
+
+# cleanup() {
+#   echo "Clearing any existing port forwarding rules..."
+#   iptables -t nat -D PREROUTING -p tcp --dport 80 -j REDIRECT --to-port 4000 2>/dev/null || true
+#   netfilter-persistent save
+# }
 
 ### --- Main Script Execution --- ###
 
@@ -166,7 +236,8 @@ check_ubuntu
 check_disk_space
 update_system
 
-echo "Using localhost for the setup"
+PUBLIC_IP=$(curl -s http://checkip.amazonaws.com)
+echo "Public IP: $PUBLIC_IP"
 
 install_dependencies
 install_docker
@@ -174,7 +245,9 @@ install_node
 
 setup_backend
 setup_frontend
+configure_nginx
 update_frontend_config
+# cleanup
 
 echo "Installation complete!"
 echo "CARE Frontend is running at: http://localhost:4000"
