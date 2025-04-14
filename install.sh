@@ -116,18 +116,12 @@ setup_backend() {
     cd care
     git pull
   else
-    echo "Cloning backend repository..."
     git clone https://github.com/ohcnetwork/care.git
     cd care
   fi
 
-  # Check if Docker services are already up
-  if docker compose ps | grep -q "Up"; then
-    echo "Backend services are already running. Skipping 'make up'."
-  else
-    echo "Starting backend services with Docker..."
-    make up
-  fi
+  echo "Starting backend services with Docker..."
+  make up
 }
 
 setup_frontend() {
@@ -139,7 +133,6 @@ setup_frontend() {
     cd care_fe
     git pull
   else
-    echo "Cloning frontend repository..."
     git clone https://github.com/ohcnetwork/care_fe.git
     cd care_fe
   fi
@@ -152,19 +145,15 @@ setup_frontend() {
 }
 
 configure_nginx() {
-  # Check if nginx is installed
-  if ! command_exists nginx; then
-    echo "Error: Nginx is not installed. Please install Nginx before proceeding."
-    exit 1
-  fi
-
   echo "Configuring Nginx..."
+
+  NGINX_CONF_PATH="/etc/nginx/sites-available/care"
   API_BASE_PATH="/api/v1"
 
-  cat > /etc/nginx/sites-available/care << EOF
+  cat > "$NGINX_CONF_PATH" << EOF
 server {
     listen 80;
-    server_name _;
+    server_name ${PUBLIC_IP};
 
     location / {
       proxy_pass http://localhost:4000;
@@ -204,22 +193,8 @@ update_frontend_config() {
     echo "REACT_CARE_API_URL=http://localhost:9000" > .env
   fi
 
-  # Check if we're not in 'care_fe' and navigate to it
-  if [ "$(basename "$PWD")" != "care_fe" ]; then
-    if [ -d "care_fe" ]; then
-      cd care_fe
-    else
-      echo "'care_fe' directory not found!"
-      exit 1
-    fi
-  fi
-
-  # Check if npm dev server is already running
-  if pgrep -f "npm run dev" > /dev/null; then
-    echo "Frontend development server already running."
-  else
-    nohup sudo npm run dev > /dev/null 2>&1 &
-  fi
+  echo "Starting frontend development server..."
+  nohup npm run dev > /dev/null 2>&1 &
 }
 
 # cleanup() {
