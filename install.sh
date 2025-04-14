@@ -142,6 +142,12 @@ setup_frontend() {
 
   echo "Running setup script..."
   npm run setup --yes
+
+  echo "Updating API URL..."
+  sed -i "s|REACT_CARE_API_URL=.*|REACT_CARE_API_URL=http://localhost:9000|g" .env
+
+  echo "Starting frontend development server..."
+  nohup npm run dev > /dev/null 2>&1 &
 }
 
 configure_nginx() {
@@ -184,19 +190,6 @@ EOF
   systemctl restart nginx
 }
 
-update_frontend_config() {
-  echo "Updating API URL..."
-
-  if [ -f ".env" ]; then
-    sed -i "s|REACT_CARE_API_URL=.*|REACT_CARE_API_URL=http://localhost:9000|g" .env
-  else
-    echo "REACT_CARE_API_URL=http://localhost:9000" > .env
-  fi
-
-  echo "Starting frontend development server..."
-  nohup npm run dev > /dev/null 2>&1 &
-}
-
 # cleanup() {
 #   echo "Clearing any existing port forwarding rules..."
 #   iptables -t nat -D PREROUTING -p tcp --dport 80 -j REDIRECT --to-port 4000 2>/dev/null || true
@@ -221,7 +214,6 @@ install_node
 setup_backend
 setup_frontend
 configure_nginx
-update_frontend_config
 # cleanup
 
 echo "Installation complete!"
