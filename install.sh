@@ -140,14 +140,35 @@ setup_frontend() {
   echo "Installing frontend dependencies..."
   npm install --yes
 
-  echo "Running setup script..."
-  npm run setup --yes
+  # echo "Running setup script..."
+  # npm run setup --yes
 
   echo "Updating API URL..."
-  sed -i "s|REACT_CARE_API_URL=.*|REACT_CARE_API_URL=http://localhost:9000|g" .env
+
+  # Check if the server is a cloud VM or local machine
+  if curl -s --connect-timeout 3 "http://$PUBLIC_IP" > /dev/null 2>&1; then
+    sed -i "s|REACT_CARE_API_URL=.*|REACT_CARE_API_URL=http://$PUBLIC_IP|g" .env
+    IS_CLOUD_VM=true
+  else
+    sed -i "s|REACT_CARE_API_URL=.*|REACT_CARE_API_URL=http://localhost:9000|g" .env
+    IS_CLOUD_VM=false
+  fi
 
   echo "Starting frontend development server..."
   nohup npm run dev > /dev/null 2>&1 &
+}
+
+create_superuser() {
+  echo "Creating Django superuser..."
+
+  cd ../care
+
+  docker compose exec backend bash -c "
+    export DJANGO_SUPERUSER_USERNAME=ohcadmin
+    export DJANGO_SUPERUSER_PASSWORD=admin@123
+    export DJANGO_SUPERUSER_EMAIL=hi@example.com
+    python manage.py createsuperuser --noinput
+  "
 }
 
 configure_nginx() {
@@ -213,9 +234,24 @@ install_node
 
 setup_backend
 setup_frontend
+create_superuser
 configure_nginx
 # cleanup
 
-echo "Installation complete!"
-echo "CARE Frontend is running at: http://localhost:4000"
-echo "CARE Backend is running at: http://localhost:9000"
+echo "========================================"
+echo "✅ Installation complete!"
+echo ""
+if [ "$IS_CLOUD_VM" = true ]; then
+  echo "🌐 CARE Frontend URL : http://$PUBLIC_IP"
+  echo "🔧 CARE Backend URL  : http://$PUBLIC_IP/api/v1"
+else
+  echo "🌐 CARE Frontend URL : http://localhost:4000"
+  echo "🔧 CARE Backend URL  : http://localhost:9000"
+fi
+echo ""
+echo "🔐 Superuser Credentials:"
+echo "    Username : ohcadmin"
+echo "    Password : admin@123"
+echo ""
+echo "📘 Docs & FAQ: https://docs.ohc.network/docs/faq"
+echo "========================================"
