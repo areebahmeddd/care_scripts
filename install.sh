@@ -34,7 +34,7 @@ command_exists() {
 install_dependencies() {
   echo "Installing required dependencies..."
 
-  required_packages=("curl" "git" "apt-transport-https" "ca-certificates" "build-essential" "unzip" "nginx" "gnupg")
+  required_packages=("curl" "git" "apt-transport-https" "ca-certificates" "build-essential" "unzip" "nginx" "gnupg" "lsof")
 
   for pkg in "${required_packages[@]}"; do
     if ! command_exists "$pkg"; then
@@ -105,6 +105,20 @@ install_node() {
 
     echo "Node.js $(node -v) and npm $(npm -v) installed"
   fi
+}
+
+check_ports() {
+  echo "Checking for port conflicts..."
+
+  for port in 80 4000 9000; do
+    if lsof -i:$port > /dev/null 2>&1; then
+      echo "Port $port is in use. Attempting to free it..."
+      sudo kill -9 $(lsof -t -i:$port)
+      echo "Port $port is now free."
+    else
+      echo "Port $port is free."
+    fi
+  done
 }
 
 setup_backend() {
@@ -231,6 +245,7 @@ echo "Public IP: $PUBLIC_IP"
 install_dependencies
 install_docker
 install_node
+check_ports
 
 setup_backend
 setup_frontend
