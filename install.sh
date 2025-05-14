@@ -172,17 +172,11 @@ setup_frontend() {
   nohup npm run dev > /dev/null 2>&1 &
 }
 
-create_superuser() {
-  echo "Creating Django superuser..."
-
+load_fixtures() {
+  echo "Loading fixtures for CARE..."
   cd ../care
-
-  docker compose exec backend bash -c "
-    export DJANGO_SUPERUSER_USERNAME=ohcadmin
-    export DJANGO_SUPERUSER_PASSWORD=admin@123
-    export DJANGO_SUPERUSER_EMAIL=hi@example.com
-    python manage.py createsuperuser --noinput
-  "
+  make load-fixtures
+  echo "Fixtures loaded successfully."
 }
 
 configure_nginx() {
@@ -249,7 +243,7 @@ check_ports
 
 setup_backend
 setup_frontend
-create_superuser
+load_fixtures
 configure_nginx
 # cleanup
 
@@ -264,9 +258,19 @@ else
   echo "🔧 CARE Backend URL  : http://localhost:9000"
 fi
 echo ""
-echo "🔐 Superuser Credentials:"
-echo "    Username : ohcadmin"
-echo "    Password : admin@123"
+echo "🔐 Default Admin Credentials:"
+echo "    Username : admin"
+echo "    Password : admin"
+echo ""
+echo "🔐 Other User Credentials:"
+echo "    Role            Username                       Password"
+echo "    ----------------------------------------------------------"
+echo "    Volunteer       volunteer_2_0                  Coronasafe@123"
+echo "    Doctor          doctor_2_0                     Coronasafe@123"
+echo "    Staff           staff_2_0                      Coronasafe@123"
+echo "    Nurse           nurse_2_0                      Coronasafe@123"
+echo "    Administrator   administrator_2_0              Coronasafe@123"
+echo "    Facility Admin  facility_admin_2_0             Coronasafe@123"
 echo ""
 echo "📘 Docs & FAQ: https://docs.ohc.network/docs/faq"
 echo "========================================"
