@@ -2,9 +2,9 @@
 
 set -e  # Exit if any command fails
 
-check_ubuntu() {
-  if ! grep -q "Ubuntu" /etc/os-release; then
-    echo "Error: This script is intended for Ubuntu systems only."
+check_debian_based() {
+  if ! [ -f /etc/debian_version ] && ! grep -qi "debian\|ubuntu" /etc/os-release 2>/dev/null; then
+    echo "Error: This script is intended for Debian-based systems only."
     exit 1
   fi
 }
@@ -229,7 +229,7 @@ EOF
 
 echo "Starting CARE installation..."
 
-check_ubuntu
+check_debian_based
 check_disk_space
 update_system
 
