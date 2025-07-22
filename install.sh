@@ -47,28 +47,15 @@ install_dependencies() {
 }
 
 install_docker() {
+  echo "Checking for Docker installation..."
+
   if command_exists docker; then
     echo "Docker is already installed."
   else
-    echo "Setting up Docker repository..."
-
-    install -m 0755 -d /etc/apt/keyrings
-
-    echo "Adding Docker GPG key..."
-    curl -fsSL https://download.docker.com/linux/ubuntu/gpg -o /etc/apt/keyrings/docker.asc
-    chmod a+r /etc/apt/keyrings/docker.asc
-
-    echo "Adding Docker repository to APT sources..."
-    echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.asc] https://download.docker.com/linux/ubuntu \
-    $(. /etc/os-release && echo "${UBUNTU_CODENAME:-$VERSION_CODENAME}") stable" \
-    | tee /etc/apt/sources.list.d/docker.list > /dev/null
-
-    apt-get update -y
-
     echo "Installing Docker..."
-    apt-get install -y docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin
-    systemctl enable docker
-    systemctl start docker
+    curl -fsSL https://get.docker.com | sudo sh &> /dev/null
+    # sudo usermod -aG docker $USER &> /dev/null
+    echo "Docker installed"
   fi
 }
 
@@ -79,30 +66,8 @@ install_node() {
     echo "Node.js is already installed. Version: $(node -v)"
   else
     echo "Installing Node.js 22..."
-
-    # Set up fnm (Fast Node Manager)
-    export FNM_DIR="$HOME/.fnm"
-    export PATH="$FNM_DIR:$PATH"
-
-    TEMP_DIR=$(mktemp -d)
-    curl -fsSL https://fnm.vercel.app/install | bash -s -- --install-dir "$TEMP_DIR" --skip-shell
-
-    # Move fnm to system path
-    mkdir -p /usr/local/lib/fnm
-    cp -r "$TEMP_DIR"/* /usr/local/lib/fnm/
-    ln -sf /usr/local/lib/fnm/fnm /usr/local/bin/fnm
-
-    export PATH="/usr/local/bin:$PATH"
-
-    # Install and link Node.js 22
-    fnm install 22
-    CURRENT_NODE_PATH=$(fnm exec --using=22 which node)
-    CURRENT_NPM_PATH=$(fnm exec --using=22 which npm)
-    ln -sf "$CURRENT_NODE_PATH" /usr/local/bin/node
-    ln -sf "$CURRENT_NPM_PATH" /usr/local/bin/npm
-
-    rm -rf "$TEMP_DIR"
-
+    curl -fsSL https://deb.nodesource.com/setup_22.x | sudo -E bash - &> /dev/null
+    sudo apt-get install -y nodejs &> /dev/null
     echo "Node.js $(node -v) and npm $(npm -v) installed"
   fi
 }
